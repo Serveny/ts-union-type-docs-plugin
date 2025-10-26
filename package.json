@@ -8,6 +8,7 @@
     },
     "scripts": {
         "build": "tsc",
+        "watch": "tsc --watch",
         "refresh": "npm run build && cd example && npm i"
     }
 }

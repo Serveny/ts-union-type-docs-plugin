@@ -1,63 +1,97 @@
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type * as TS from 'typescript/lib/tsserverlibrary';
 
-export function extractJsDoc(unionNode: ts.UnionTypeNode): string[] {
-  console.log('EXTRACT JS DOC: ', unionNode.pos);
-  const extraDocs: string[] = [];
-  for (const memberNode of unionNode.types) {
-    console.log('JS DOC Pos: ', memberNode.pos, memberNode.end);
-    if (
-      ts.isLiteralTypeNode(memberNode) &&
-      memberNode.literal.kind === ts.SyntaxKind.StringLiteral
-    ) {
-      const literalNode = memberNode;
-      const stringLiteral = (literalNode.literal as ts.StringLiteral).text;
+export function extractJsDocs(
+	ts: typeof TS,
+	typeNode: TS.TypeNode,
+	checker: TS.TypeChecker
+): string[] {
+	let unionTypeNode: TS.UnionTypeNode | undefined = undefined;
 
-      const jsDoc = (literalNode as any).jsDoc;
+	// is inline union (i.e. param: string | number)
+	if (ts.isUnionTypeNode(typeNode)) {
+		unionTypeNode = typeNode;
+	}
 
-      if (jsDoc && jsDoc.length > 0) {
-        // Nimm den letzten JSDoc-Block
-        const lastJsDoc = jsDoc[jsDoc.length - 1];
-        let comment = lastJsDoc.comment;
+	// is type alias (i.e. type X = string | number)
+	else if (typeNode.kind === ts.SyntaxKind.TypeReference) {
+		const symbol = checker.getSymbolAtLocation(typeNode);
+		if (
+			symbol &&
+			symbol.valueDeclaration &&
+			ts.isTypeAliasDeclaration(symbol.valueDeclaration)
+		) {
+			const aliasDecl = symbol.valueDeclaration;
+			if (ts.isUnionTypeNode(aliasDecl.type)) {
+				unionTypeNode = aliasDecl.type;
+			}
+		}
+	}
 
-        // 'comment' kann ein String oder ein NodeArray sein
-        let docString = '';
-        if (typeof comment === 'string') {
-          docString = comment;
-        } else if (comment) {
-          docString = (comment as ts.NodeArray<ts.JSDocComment>)
-            .map((part) => part.text)
-            .join('');
-        }
+	if (unionTypeNode) {
+		const sourceFile = unionTypeNode.getSourceFile();
+		return extractJSDocsFromUnionNode(ts, unionTypeNode, sourceFile);
+	}
 
-        if (docString) {
-          extraDocs.push(`- \`${stringLiteral}\`: ${docString.trim()}`);
-        }
-      }
-    }
-  }
-  return extraDocs;
+	return [];
 }
 
-export function addExtraDocsToQuickInfo(
-  extraDocs: string[],
-  quickInfo: ts.QuickInfo
-) {
-  if (!quickInfo.documentation) {
-    quickInfo.documentation = [];
-  }
+export function addExtraDocs(quickInfo: TS.QuickInfo, extraDocs: string[]) {
+	if (!quickInfo.documentation) quickInfo.documentation = [];
+	quickInfo.documentation.push(
+		...extraDocs.map((c) => ({ text: c, kind: 'text' } as TS.SymbolDisplayPart))
+	);
+}
 
-  quickInfo.documentation.push(
-    { kind: 'lineBreak', text: '\n' },
-    { kind: 'lineBreak', text: '\n' },
-    { kind: 'text', text: 'Available Values:' },
-    { kind: 'lineBreak', text: '\n' }
-  );
+function extractJSDocsFromUnionNode(
+	ts: typeof TS,
+	unionNode: TS.UnionTypeNode,
+	sourceFile: TS.SourceFile
+): string[] {
+	const lines = [];
+	const sourceText = sourceFile.getFullText();
 
-  // Jeden Doc-String als eigenen Teil hinzufügen
-  extraDocs.forEach((doc, index) => {
-    quickInfo.documentation!.push({ kind: 'text', text: doc });
-    if (index < extraDocs.length - 1) {
-      quickInfo.documentation!.push({ kind: 'lineBreak', text: '\n' });
-    }
-  });
+	for (const memberNode of unionNode.types) {
+		const start = memberNode.getStart();
+		const test = sourceText.slice(start, memberNode.end);
+		const comment = getLeadingComment(ts, sourceText, start);
+		if (comment)
+			lines.push(
+				...cleanJSDocText(sourceText.substring(comment.pos, comment.end))
+			);
+	}
+	return lines;
+}
+
+function getLeadingComment(
+	ts: typeof TS,
+	text: string,
+	pos: number
+): TS.CommentRange | undefined {
+	const comments = ts.getLeadingCommentRanges(text, pos) ?? [];
+	// jsdoc comment (has to start with /**)
+	if (comments.length > 0 && text[comments[0].pos + 2] === '*')
+		return comments[comments.length - 1];
+	text = text.substring(0, pos);
+	const commentStart = text.lastIndexOf('/**');
+	if (commentStart === -1) return;
+	const commentEnd = text.lastIndexOf('*/');
+	if (commentEnd === -1) return;
+	const textBetween = text.substring(commentEnd + 2, pos);
+	if (/[^ \t|\n]/.test(textBetween)) return;
+	return {
+		pos: commentStart + 3,
+		end: commentEnd,
+		kind: ts.SyntaxKind.MultiLineCommentTrivia,
+	};
+}
+
+function cleanJSDocText(rawComment: string): string[] {
+	return (
+		rawComment
+			.replace('/**', '')
+			.replace('*/', '')
+			.split('\n')
+			// remove whitespace and the leading * in every line
+			.map((line) => line.trim().replace(/^\* ?/, ''))
+	);
 }

@@ -7,6 +7,7 @@ Show JS/TS doc comments from union type entries in quick info.
 - Show union entry ts doc comment for:
   - union function parameter below normal quickinfo
   - const with union type
+- Dynamic type suggestions (f.e. `group${number}` should suggest `group0`)
 
 ### Get Started
 
