@@ -2,6 +2,12 @@
 
 Show JS/TS doc comments from union type entries in quick info.
 
+### Planned Features
+
+- Show union entry ts doc comment for:
+  - union function parameter below normal quickinfo
+  - const with union type
+
 ### Get Started
 
 ### How to debug
