@@ -85,7 +85,7 @@ export class UnionParameterInfo {
 		public i: number,
 		public name: string,
 		// Can be multiple nodes because different union types can have same values
-		public entries: TS.LiteralTypeNode[],
+		public entries: TS.TypeNode[],
 		public value?: string
 	) {}
 }
@@ -102,26 +102,31 @@ function getUnionParamters(
 	const args = node.arguments;
 	const params = signature.getParameters();
 	for (let i = 0; i < params.length; i++) {
-		const paramNodes = getUnionParamNodes(ts, checker, params[i]);
-		if (paramNodes.length === 0) continue;
-
-		const arg = args[i];
-		const value = ts.isStringLiteral(arg) ? arg.text : undefined;
-
-		const valueNodes: TS.LiteralTypeNode[] = [];
-		for (const unionNode of paramNodes) {
-			const entries = unionNode.types.filter((entry) =>
-				isNodeEqualValue(ts, entry, value)
-			);
-			valueNodes.push(...entries);
-		}
-
-		paramTypes.push(
-			new UnionParameterInfo(i, params[i].name, valueNodes, value)
-		);
+		const paramInfo = getUnionParamInfo(ts, checker, i, params[i], args[i]);
+		if (paramInfo) paramTypes.push(paramInfo);
 	}
 
 	return paramTypes;
+}
+
+function getUnionParamInfo(
+	ts: typeof TS,
+	checker: TS.TypeChecker,
+	i: number,
+	paramSymbol: TS.Symbol,
+	arg: TS.Expression
+): UnionParameterInfo | null {
+	const paramNodes = getUnionParamNodes(ts, checker, paramSymbol);
+	if (paramNodes.length === 0) return null;
+
+	const value = arg.getText();
+	const valueNodes: TS.TypeNode[] = [];
+	for (const unionNode of paramNodes) {
+		const entries = unionNode.types.filter((entry) => cmp(ts, arg, entry));
+		valueNodes.push(...entries);
+	}
+
+	return new UnionParameterInfo(i, paramSymbol.name, valueNodes, value);
 }
 
 function getUnionParamNodes(
@@ -164,7 +169,6 @@ function findUnionTypes(
 		: null;
 	if (!type) return [];
 	if (ts.isTypeReferenceNode(type)) return findUnionTypes(ts, checker, type);
-	if (ts.isUnionTypeNode(type)) return walkUnionEntries(ts, type, checker);
 	if (ts.isTypeOperatorNode(type)) {
 		const resolvedType = checker.getTypeAtLocation(type);
 		if (resolvedType.isUnion()) {
@@ -177,6 +181,7 @@ function findUnionTypes(
 		}
 		return [];
 	}
+	if (ts.isUnionTypeNode(type)) return walkUnionEntries(ts, type, checker);
 	return [];
 }
 
@@ -193,16 +198,47 @@ function walkUnionEntries(
 	return [typeNode, ...children];
 }
 
-export function isNodeEqualValue(
-	ts: typeof TS,
-	typeNode: TS.TypeNode,
-	value: unknown
-): typeNode is TS.LiteralTypeNode {
-	if (ts.isLiteralTypeNode(typeNode)) {
-		const lit = typeNode.literal;
-		if (ts.isStringLiteral(lit)) return lit.text === value;
-		else if (ts.isNumericLiteral(lit)) return parseFloat(lit.text) === value;
-	}
+function cmp(ts: typeof TS, expr: TS.Expression, node: TS.TypeNode): boolean {
+	if (!ts.isLiteralTypeNode(node)) return false;
+
+	const typeLiteral = node.literal;
+
+	// string literals (i.e. "hello" and type T = "hello")
+	if (ts.isStringLiteral(expr) && ts.isStringLiteral(typeLiteral))
+		return expr.text === typeLiteral.text;
+
+	// numeric literals (i.e. 42 and type T = 42)
+	if (ts.isNumericLiteral(expr) && ts.isNumericLiteral(typeLiteral))
+		return expr.text === typeLiteral.text;
+
+	// BigInt literals (i.e. 100n and type T = 100n)
+	if (ts.isBigIntLiteral(expr) && ts.isBigIntLiteral(typeLiteral))
+		return expr.text === typeLiteral.text;
+
+	// booleans (compare kind of nodes)
+	if (
+		(expr.kind === ts.SyntaxKind.TrueKeyword &&
+			typeLiteral.kind === ts.SyntaxKind.TrueKeyword) ||
+		(expr.kind === ts.SyntaxKind.FalseKeyword &&
+			typeLiteral.kind === ts.SyntaxKind.FalseKeyword)
+	)
+		return true;
+
+	// TODO: objects
+
+	// null
+	if (
+		expr.kind === ts.SyntaxKind.NullKeyword &&
+		typeLiteral.kind === ts.SyntaxKind.NullKeyword
+	)
+		return true;
+
+	// undefined
+	if (
+		expr.kind === ts.SyntaxKind.UndefinedKeyword &&
+		typeLiteral.kind === ts.SyntaxKind.UndefinedKeyword
+	)
+		return true;
 
 	return false;
 }

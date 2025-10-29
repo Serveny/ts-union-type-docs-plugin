@@ -10,7 +10,7 @@ export function extractJsDocs(
 	for (const node of param.entries) {
 		// TODO: Cache source files?
 		const sourceFile = node.getSourceFile();
-		lines.push(...extractJSDocsFromNode(ts, node, param.value, sourceFile));
+		lines.push(...extractJSDocsFromNode(ts, node, sourceFile));
 	}
 
 	return lines;
@@ -43,8 +43,7 @@ ${paramBlocks.join('\n')}
 
 function extractJSDocsFromNode(
 	ts: typeof TS,
-	node: TS.LiteralTypeNode,
-	value: unknown,
+	node: TS.TypeNode,
 	sourceFile: TS.SourceFile
 ): string[] {
 	const sourceText = sourceFile.getFullText();
