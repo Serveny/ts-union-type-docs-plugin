@@ -1,5 +1,5 @@
 import type * as TS from 'typescript/lib/tsserverlibrary';
-import { addExtraDocs, extractJsDocs } from './docs';
+import { addExtraDocs, extractJsDocs, ParamDocs } from './docs';
 import { TypeInfo } from './info';
 
 export class UnionTypeDocsPlugin {
@@ -25,10 +25,11 @@ export class UnionTypeDocsPlugin {
 		const info = TypeInfo.from(this.ts, this.ls, fileName, pos);
 		if (!info) return quickInfo;
 
-		const extraDocs: string[] = [];
+		const extraDocs: ParamDocs[] = [];
 		for (const param of info.unionParams) {
-			const lines = extractJsDocs(this.ts, param);
-			extraDocs.push(...lines);
+			const docComment = extractJsDocs(this.ts, param);
+			if (docComment.length > 0)
+				extraDocs.push(new ParamDocs(param.i, param.name, docComment));
 		}
 		if (extraDocs.length > 0) addExtraDocs(quickInfo, extraDocs);
 

@@ -82,6 +82,8 @@ function findNodeAtPosition(
 
 export class UnionParameterInfo {
 	constructor(
+		public i: number,
+		public name: string,
 		// Can be multiple nodes because different union types can have same values
 		public entries: TS.LiteralTypeNode[],
 		public value?: string
@@ -114,7 +116,9 @@ function getUnionParamters(
 			valueNodes.push(...entries);
 		}
 
-		paramTypes.push(new UnionParameterInfo(valueNodes, value));
+		paramTypes.push(
+			new UnionParameterInfo(i, params[i].name, valueNodes, value)
+		);
 	}
 
 	return paramTypes;

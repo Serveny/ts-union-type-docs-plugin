@@ -16,10 +16,29 @@ export function extractJsDocs(
 	return lines;
 }
 
-export function addExtraDocs(quickInfo: TS.QuickInfo, extraDocs: string[]) {
-	quickInfo.documentation = extraDocs.map(
-		(c) => ({ text: c, kind: 'text' } as TS.SymbolDisplayPart)
-	);
+export class ParamDocs {
+	constructor(
+		public i: number,
+		public name: string,
+		public docComment: string[]
+	) {}
+	toMarkdown(): string {
+		const docs = this.docComment.join('\n');
+		return `\n#### ${numberEmoji(this.i + 1)} ${this.name} ${docs}`;
+	}
+}
+
+export function addExtraDocs(quickInfo: TS.QuickInfo, paramDocs: ParamDocs[]) {
+	const paramBlocks = paramDocs.map((pd) => pd.toMarkdown());
+	const mdText = `\n
+---
+### 🌟 Parameter-Details
+${paramBlocks.join('\n')}
+`;
+	quickInfo.documentation = [
+		...(quickInfo.documentation ?? []),
+		{ text: mdText, kind: 'text' } as TS.SymbolDisplayPart,
+	];
 }
 
 function extractJSDocsFromNode(
@@ -69,4 +88,11 @@ function cleanJSDocText(rawComment: string): string[] {
 			// remove whitespace and the leading * in every line
 			.map((line) => line.trim().replace(/^\* ?/, ''))
 	);
+}
+
+const numEmjs = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
+
+function numberEmoji(num: number) {
+	if (num === 10) return '🔟';
+	return [...String(num)].map((char) => numEmjs[parseInt(char, 10)]);
 }
