@@ -10,7 +10,10 @@ export function addExtraDocs(
 	typeInfo.unionParams.forEach((p) => addDocComment(ts, p));
 	quickInfo.documentation = [
 		...(quickInfo.documentation ?? []),
-		{ text: createMarkdown(typeInfo), kind: 'text' } as TS.SymbolDisplayPart,
+		{
+			text: createMarkdown(typeInfo),
+			kind: 'markdown',
+		} as TS.SymbolDisplayPart,
 	];
 }
 
@@ -51,7 +54,7 @@ function extractJSDocsFromNode(
 	const comment = getLeadingComment(ts, sourceText, start);
 
 	return comment
-		? cleanJSDocText(sourceText.substring(comment.pos, comment.end))
+		? prepareJSDocText(sourceText.substring(comment.pos, comment.end))
 		: [];
 }
 
@@ -78,7 +81,7 @@ function getLeadingComment(
 	};
 }
 
-function cleanJSDocText(rawComment: string): string[] {
+function prepareJSDocText(rawComment: string): string[] {
 	return (
 		rawComment
 			.replace('/**', '')
@@ -86,6 +89,8 @@ function cleanJSDocText(rawComment: string): string[] {
 			.split('\n')
 			// remove whitespace and the leading * in every line
 			.map((line) => line.trim().replace(/^\* ?/, ''))
+			// make @tags fat again
+			.map((line) => line.replace(/@(\w+)/g, (_, tag) => `\n**@${tag}**`))
 	);
 }
 
