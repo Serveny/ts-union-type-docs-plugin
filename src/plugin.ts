@@ -16,6 +16,8 @@ export class UnionTypeDocsPlugin {
 		this.typeInfoFactory = new TypeInfoFactory(this.ts, this.ls)!;
 		this.proxy = createLsProxy(this.ls);
 		this.proxy.getQuickInfoAtPosition = this.getQuickInfoAtPosition.bind(this);
+		this.proxy.getCompletionsAtPosition =
+			this.getCompletionsAtPosition.bind(this);
 		this.logger.info('[Union type docs plugin] Loaded');
 		return this.proxy;
 	}
@@ -30,6 +32,17 @@ export class UnionTypeDocsPlugin {
 		addExtraDocs(this.ts, quickInfo, typeInfo);
 
 		return quickInfo;
+	}
+
+	private getCompletionsAtPosition(
+		fileName: string,
+		pos: number,
+		opts: TS.GetCompletionsAtPositionOptions | undefined,
+		fmt?: TS.FormatCodeSettings
+	): TS.WithMetadata<TS.CompletionInfo> | undefined {
+		const cmpl = this.ls.getCompletionsAtPosition(fileName, pos, opts, fmt);
+
+		return cmpl;
 	}
 }
 
