@@ -176,108 +176,101 @@ class TypeInfoFactory {
     return this.ts.isLiteralExpression(expr) ? expr.text : expr.getText();
   }
   collectUnionMemberNodes(node, callParent) {
-    const ts = this.ts, checker = this.checker;
-    if (ts.isUnionTypeNode(node) || ts.isIntersectionTypeNode(node) || ts.isHeritageClause(node)) {
+    const ts = this.ts;
+    if (ts.isUnionTypeNode(node) || // e.g. string | number
+    ts.isIntersectionTypeNode(node) || // e.g. Class1 & Class2
+    ts.isHeritageClause(node)) {
       return node.types.map((tn) => this.collectUnionMemberNodes(tn, node)).flat();
     }
-    if (ts.isConditionalTypeNode(node)) {
-      return [
-        ...this.collectUnionMemberNodes(node.checkType, node),
-        ...this.collectUnionMemberNodes(node.extendsType, node),
-        ...this.collectUnionMemberNodes(node.trueType, node),
-        ...this.collectUnionMemberNodes(node.falseType, node)
-      ];
-    }
-    if (ts.isIndexedAccessTypeNode(node)) {
-      return [
-        ...this.collectUnionMemberNodes(node.objectType, node),
-        ...this.collectUnionMemberNodes(node.indexType, node)
-      ];
-    }
-    if (ts.isTypeLiteralNode(node)) {
-      return node.members.map(
-        (m) => m.type ? this.collectUnionMemberNodes(m.type, node) : []
-      ).flat();
-    }
-    if (ts.isMappedTypeNode(node)) {
-      const results = [];
-      if (node.typeParameter.constraint)
-        results.push(
-          ...this.collectUnionMemberNodes(node.typeParameter.constraint, node)
-        );
-      if (node.type)
-        results.push(...this.collectUnionMemberNodes(node.type, node));
-      return results;
-    }
-    if (ts.isTypeReferenceNode(node)) {
-      const symbol = checker.getSymbolAtLocation(node.typeName);
-      if (!symbol) return [];
-      const aliasedSymbol = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-      const decl = aliasedSymbol.declarations?.[0];
-      if (!decl) return [];
-      const tn = ts.isTypeParameterDeclaration(decl) ? decl.constraint ?? null : ts.isTypeAliasDeclaration(decl) ? decl.type : null;
-      if (!tn) return [];
-      return this.collectUnionMemberNodes(tn, node);
-    }
-    if (ts.isTypeOperatorNode(node)) {
-      if (node.operator === ts.SyntaxKind.KeyOfKeyword) {
-        const type = checker.getTypeAtLocation(node.type);
-        return type.getProperties().map((p) => {
-          const decl = p.getDeclarations()?.[0];
-          const node2 = ts.factory.createLiteralTypeNode(
-            ts.factory.createStringLiteral(p.getName())
-          );
-          node2.original = decl;
-          node2.callParent = callParent;
-          return node2;
-        });
-      }
-    }
-    if (ts.isParenthesizedTypeNode(node)) {
+    if (ts.isConditionalTypeNode(node))
+      return this.collectConditionalTypeNode(node);
+    if (ts.isIndexedAccessTypeNode(node))
+      return this.collectIndexedAccessTypeNode(node);
+    if (ts.isTypeLiteralNode(node)) return this.collectTypeLiteralNode(node);
+    if (ts.isMappedTypeNode(node)) return this.collectMappedTypeNode(node);
+    if (ts.isTypeReferenceNode(node))
+      return this.collectTypeReferenceNode(node);
+    if (ts.isTypeOperatorNode(node) && node.operator === ts.SyntaxKind.KeyOfKeyword)
+      return this.collectKeyOfKeywordTypeOperatorNode(node, callParent);
+    if (ts.isParenthesizedTypeNode(node))
       return this.collectUnionMemberNodes(node.type, node);
-    }
-    if (ts.isArrayTypeNode(node)) {
+    if (ts.isArrayTypeNode(node))
       return this.collectUnionMemberNodes(node.elementType, node);
-    }
-    if (ts.isTupleTypeNode(node)) {
-      return node.elements.map((el) => this.collectUnionMemberNodes(el, node)).flat();
-    }
-    if (ts.isTypeQueryNode(node)) {
-      const symbol = checker.getSymbolAtLocation(node.exprName);
-      if (symbol) {
-        const decls = symbol.getDeclarations() ?? [];
-        return decls.flatMap(
-          (d) => this.collectUnionMemberNodes(d, node)
-        );
-      }
-      return [];
-    }
-    if (ts.isTemplateLiteralTypeNode(node)) {
+    if (ts.isTupleTypeNode(node)) return this.collectTupleTypeNode(node);
+    if (ts.isTypeQueryNode(node)) return this.collectTypeQueryNode(node);
+    if (ts.isTemplateLiteralTypeNode(node))
       return this.buildTemplateLiteralNode(node);
-    }
-    if (ts.isLiteralTypeNode(node) || ts.isTypeNode(node)) {
+    if (ts.isLiteralTypeNode(node) || // e.g. "text", 42, true
+    ts.isTypeNode(node)) {
       node.callParent = callParent;
       return [node];
     }
+    console.warn("Unknown node type: ", node);
     return [];
   }
-  cmp(expr, node) {
-    const ts = this.ts;
-    if (!ts.isLiteralTypeNode(node)) return false;
-    const typeLiteral = node.literal;
-    if (ts.isStringLiteral(expr) && ts.isStringLiteral(typeLiteral))
-      return expr.text === typeLiteral.text;
-    if (ts.isNumericLiteral(expr) && ts.isNumericLiteral(typeLiteral))
-      return expr.text === typeLiteral.text;
-    if (ts.isBigIntLiteral(expr) && ts.isBigIntLiteral(typeLiteral))
-      return expr.text === typeLiteral.text;
-    if (expr.kind === ts.SyntaxKind.TrueKeyword && typeLiteral.kind === ts.SyntaxKind.TrueKeyword || expr.kind === ts.SyntaxKind.FalseKeyword && typeLiteral.kind === ts.SyntaxKind.FalseKeyword)
-      return true;
-    if (expr.kind === ts.SyntaxKind.NullKeyword && typeLiteral.kind === ts.SyntaxKind.NullKeyword)
-      return true;
-    if (expr.kind === ts.SyntaxKind.UndefinedKeyword && typeLiteral.kind === ts.SyntaxKind.UndefinedKeyword)
-      return true;
-    return false;
+  collectConditionalTypeNode(node) {
+    return [
+      ...this.collectUnionMemberNodes(node.checkType, node),
+      ...this.collectUnionMemberNodes(node.extendsType, node),
+      ...this.collectUnionMemberNodes(node.trueType, node),
+      ...this.collectUnionMemberNodes(node.falseType, node)
+    ];
+  }
+  collectIndexedAccessTypeNode(node) {
+    return [
+      ...this.collectUnionMemberNodes(node.objectType, node),
+      ...this.collectUnionMemberNodes(node.indexType, node)
+    ];
+  }
+  collectTypeLiteralNode(node) {
+    return node.members.map(
+      (m) => m.type ? this.collectUnionMemberNodes(m.type, node) : []
+    ).flat();
+  }
+  collectMappedTypeNode(node) {
+    const results = [];
+    if (node.typeParameter.constraint)
+      results.push(
+        ...this.collectUnionMemberNodes(node.typeParameter.constraint, node)
+      );
+    if (node.type)
+      results.push(...this.collectUnionMemberNodes(node.type, node));
+    return results;
+  }
+  collectTypeReferenceNode(node) {
+    const checker = this.checker, ts = this.ts, symbol = checker.getSymbolAtLocation(node.typeName);
+    if (!symbol) return [];
+    const aliasedSymbol = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+    const decl = aliasedSymbol.declarations?.[0];
+    if (!decl) return [];
+    const tn = ts.isTypeParameterDeclaration(decl) ? decl.constraint ?? null : ts.isTypeAliasDeclaration(decl) ? decl.type : null;
+    if (!tn) return [];
+    return this.collectUnionMemberNodes(tn, node);
+  }
+  collectKeyOfKeywordTypeOperatorNode(node, callParent) {
+    const ts = this.ts, checker = this.checker, type = checker.getTypeAtLocation(node.type);
+    return type.getProperties().map((p) => {
+      const decl = p.getDeclarations()?.[0];
+      const node2 = ts.factory.createLiteralTypeNode(
+        ts.factory.createStringLiteral(p.getName())
+      );
+      node2.original = decl;
+      node2.callParent = callParent;
+      return node2;
+    });
+  }
+  collectTupleTypeNode(node) {
+    return node.elements.map((el) => this.collectUnionMemberNodes(el, node)).flat();
+  }
+  collectTypeQueryNode(node) {
+    const symbol = this.checker.getSymbolAtLocation(node.exprName);
+    if (symbol) {
+      const decls = symbol.getDeclarations() ?? [];
+      return decls.flatMap(
+        (d) => this.collectUnionMemberNodes(d, node)
+      );
+    }
+    return [];
   }
   // Creates new literal nodes with every possible content
   buildTemplateLiteralNode(node) {
@@ -300,6 +293,24 @@ class TypeInfoFactory {
       }
     }
     return results;
+  }
+  cmp(expr, node) {
+    const ts = this.ts;
+    if (!ts.isLiteralTypeNode(node)) return false;
+    const typeLiteral = node.literal;
+    if (ts.isStringLiteral(expr) && ts.isStringLiteral(typeLiteral))
+      return expr.text === typeLiteral.text;
+    if (ts.isNumericLiteral(expr) && ts.isNumericLiteral(typeLiteral))
+      return expr.text === typeLiteral.text;
+    if (ts.isBigIntLiteral(expr) && ts.isBigIntLiteral(typeLiteral))
+      return expr.text === typeLiteral.text;
+    if (expr.kind === ts.SyntaxKind.TrueKeyword && typeLiteral.kind === ts.SyntaxKind.TrueKeyword || expr.kind === ts.SyntaxKind.FalseKeyword && typeLiteral.kind === ts.SyntaxKind.FalseKeyword)
+      return true;
+    if (expr.kind === ts.SyntaxKind.NullKeyword && typeLiteral.kind === ts.SyntaxKind.NullKeyword)
+      return true;
+    if (expr.kind === ts.SyntaxKind.UndefinedKeyword && typeLiteral.kind === ts.SyntaxKind.UndefinedKeyword)
+      return true;
+    return false;
   }
 }
 class UnionTypeDocsPlugin {

@@ -26,6 +26,14 @@ export declare class TypeInfoFactory {
     private getUnionParamInfo;
     private getValue;
     private collectUnionMemberNodes;
-    private cmp;
+    private collectConditionalTypeNode;
+    private collectIndexedAccessTypeNode;
+    private collectTypeLiteralNode;
+    private collectMappedTypeNode;
+    private collectTypeReferenceNode;
+    private collectKeyOfKeywordTypeOperatorNode;
+    private collectTupleTypeNode;
+    private collectTypeQueryNode;
     private buildTemplateLiteralNode;
+    private cmp;
 }

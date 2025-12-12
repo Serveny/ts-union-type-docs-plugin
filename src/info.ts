@@ -103,127 +103,206 @@ export class TypeInfoFactory {
 		node: TS.Node,
 		callParent?: TS.Node
 	): CalledNode[] {
-		const ts = this.ts,
-			checker = this.checker;
+		const ts = this.ts;
 
 		if (
-			ts.isUnionTypeNode(node) ||
-			ts.isIntersectionTypeNode(node) ||
-			ts.isHeritageClause(node)
+			ts.isUnionTypeNode(node) || // e.g. string | number
+			ts.isIntersectionTypeNode(node) || // e.g. Class1 & Class2
+			ts.isHeritageClause(node) // e.g. Class1 extends BaseClass implements Interface1
 		) {
 			return node.types
 				.map((tn) => this.collectUnionMemberNodes(tn, node))
 				.flat();
 		}
 
-		if (ts.isConditionalTypeNode(node)) {
-			return [
-				...this.collectUnionMemberNodes(node.checkType, node),
-				...this.collectUnionMemberNodes(node.extendsType, node),
-				...this.collectUnionMemberNodes(node.trueType, node),
-				...this.collectUnionMemberNodes(node.falseType, node),
-			];
-		}
+		// e.g. T extends U ? string : number
+		if (ts.isConditionalTypeNode(node))
+			return this.collectConditionalTypeNode(node);
 
-		if (ts.isIndexedAccessTypeNode(node)) {
-			return [
-				...this.collectUnionMemberNodes(node.objectType, node),
-				...this.collectUnionMemberNodes(node.indexType, node),
-			];
-		}
+		// e.g. Object1["propName"]
+		if (ts.isIndexedAccessTypeNode(node))
+			return this.collectIndexedAccessTypeNode(node);
 
-		if (ts.isTypeLiteralNode(node)) {
-			return node.members
-				.map((m) =>
-					(m as any).type
-						? this.collectUnionMemberNodes((m as any).type, node)
-						: []
-				)
-				.flat();
-		}
+		// e.g. { prop1: string; prop2: number }
+		if (ts.isTypeLiteralNode(node)) return this.collectTypeLiteralNode(node);
 
-		if (ts.isMappedTypeNode(node)) {
-			const results: TS.TypeNode[] = [];
-			if (node.typeParameter.constraint)
-				results.push(
-					...this.collectUnionMemberNodes(node.typeParameter.constraint, node)
-				);
-			if (node.type)
-				results.push(...this.collectUnionMemberNodes(node.type, node));
-			return results;
-		}
+		// e.g. { [K in keyof T]: T[K] }
+		if (ts.isMappedTypeNode(node)) return this.collectMappedTypeNode(node);
 
-		if (ts.isTypeReferenceNode(node)) {
-			const symbol = checker.getSymbolAtLocation(node.typeName);
-			if (!symbol) return [];
-			const aliasedSymbol =
-				symbol.flags & ts.SymbolFlags.Alias
-					? checker.getAliasedSymbol(symbol)
-					: symbol;
+		// e.g. Promise<string>
+		if (ts.isTypeReferenceNode(node))
+			return this.collectTypeReferenceNode(node);
 
-			const decl = aliasedSymbol.declarations?.[0];
-			if (!decl) return [];
-			const tn = ts.isTypeParameterDeclaration(decl)
-				? decl.constraint ?? null
-				: ts.isTypeAliasDeclaration(decl)
-				? decl.type
-				: null;
-			if (!tn) return [];
-			return this.collectUnionMemberNodes(tn, node);
-		}
+		// e.g. keyof Class1
+		if (
+			ts.isTypeOperatorNode(node) &&
+			node.operator === ts.SyntaxKind.KeyOfKeyword
+		)
+			return this.collectKeyOfKeywordTypeOperatorNode(node, callParent);
 
-		if (ts.isTypeOperatorNode(node)) {
-			if (node.operator === ts.SyntaxKind.KeyOfKeyword) {
-				const type = checker.getTypeAtLocation(node.type);
-				return type.getProperties().map((p) => {
-					const decl = p.getDeclarations()?.[0];
-					const node = ts.factory.createLiteralTypeNode(
-						ts.factory.createStringLiteral(p.getName())
-					);
-					// little hack to get the original declaration of the keyof property
-					// to be able to access the jsdoc of it
-					(node as any).original = decl;
-					(node as any).callParent = callParent;
-					return node;
-				});
-			}
-		}
-
-		if (ts.isParenthesizedTypeNode(node)) {
+		// e.g. (string | number)[]
+		if (ts.isParenthesizedTypeNode(node))
 			return this.collectUnionMemberNodes(node.type, node);
-		}
 
-		if (ts.isArrayTypeNode(node)) {
+		// e.g. string[]
+		if (ts.isArrayTypeNode(node))
 			return this.collectUnionMemberNodes(node.elementType, node);
-		}
 
-		if (ts.isTupleTypeNode(node)) {
-			return node.elements
-				.map((el) => this.collectUnionMemberNodes(el, node))
-				.flat();
-		}
+		// e.g. [string, number, boolean]
+		if (ts.isTupleTypeNode(node)) return this.collectTupleTypeNode(node);
 
-		if (ts.isTypeQueryNode(node)) {
-			const symbol = checker.getSymbolAtLocation(node.exprName);
-			if (symbol) {
-				const decls = symbol.getDeclarations() ?? [];
-				return decls.flatMap((d) =>
-					this.collectUnionMemberNodes(d as TS.Node, node)
-				);
-			}
-			return [];
-		}
+		// e.g. typeof var1
+		if (ts.isTypeQueryNode(node)) return this.collectTypeQueryNode(node);
 
-		if (ts.isTemplateLiteralTypeNode(node)) {
+		// e.g. `text-${number}`
+		if (ts.isTemplateLiteralTypeNode(node))
 			return this.buildTemplateLiteralNode(node);
-		}
 
-		if (ts.isLiteralTypeNode(node) || ts.isTypeNode(node)) {
+		// This is the end of the journey
+		if (
+			ts.isLiteralTypeNode(node) || // e.g. "text", 42, true
+			ts.isTypeNode(node) // e.g. string, number, boolean
+		) {
 			(node as any).callParent = callParent;
 			return [node];
 		}
 
+		console.warn('Unknown node type: ', node);
 		return [];
+	}
+
+	private collectConditionalTypeNode(
+		node: TS.ConditionalTypeNode
+	): CalledNode[] {
+		return [
+			...this.collectUnionMemberNodes(node.checkType, node),
+			...this.collectUnionMemberNodes(node.extendsType, node),
+			...this.collectUnionMemberNodes(node.trueType, node),
+			...this.collectUnionMemberNodes(node.falseType, node),
+		];
+	}
+
+	private collectIndexedAccessTypeNode(
+		node: TS.IndexedAccessTypeNode
+	): CalledNode[] {
+		return [
+			...this.collectUnionMemberNodes(node.objectType, node),
+			...this.collectUnionMemberNodes(node.indexType, node),
+		];
+	}
+
+	private collectTypeLiteralNode(node: TS.TypeLiteralNode): CalledNode[] {
+		return node.members
+			.map((m) =>
+				(m as any).type
+					? this.collectUnionMemberNodes((m as any).type, node)
+					: []
+			)
+			.flat();
+	}
+
+	private collectMappedTypeNode(node: TS.MappedTypeNode): CalledNode[] {
+		const results: TS.TypeNode[] = [];
+		if (node.typeParameter.constraint)
+			results.push(
+				...this.collectUnionMemberNodes(node.typeParameter.constraint, node)
+			);
+		if (node.type)
+			results.push(...this.collectUnionMemberNodes(node.type, node));
+		return results;
+	}
+
+	private collectTypeReferenceNode(node: TS.TypeReferenceNode): CalledNode[] {
+		const checker = this.checker,
+			ts = this.ts,
+			symbol = checker.getSymbolAtLocation(node.typeName);
+		if (!symbol) return [];
+
+		const aliasedSymbol =
+			symbol.flags & ts.SymbolFlags.Alias
+				? checker.getAliasedSymbol(symbol)
+				: symbol;
+
+		const decl = aliasedSymbol.declarations?.[0];
+		if (!decl) return [];
+		const tn = ts.isTypeParameterDeclaration(decl)
+			? decl.constraint ?? null
+			: ts.isTypeAliasDeclaration(decl)
+			? decl.type
+			: null;
+		if (!tn) return [];
+		return this.collectUnionMemberNodes(tn, node);
+	}
+
+	private collectKeyOfKeywordTypeOperatorNode(
+		node: TS.TypeOperatorNode,
+		callParent?: TS.Node
+	): CalledNode[] {
+		const ts = this.ts,
+			checker = this.checker,
+			type = checker.getTypeAtLocation(node.type);
+		return type.getProperties().map((p) => {
+			const decl = p.getDeclarations()?.[0];
+			const node = ts.factory.createLiteralTypeNode(
+				ts.factory.createStringLiteral(p.getName())
+			);
+			// little hack to get the original declaration of the keyof property
+			// to be able to access the jsdoc of it
+			(node as any).original = decl;
+			(node as any).callParent = callParent;
+			return node;
+		});
+	}
+
+	private collectTupleTypeNode(node: TS.TupleTypeNode): CalledNode[] {
+		return node.elements
+			.map((el) => this.collectUnionMemberNodes(el, node))
+			.flat();
+	}
+
+	private collectTypeQueryNode(node: TS.TypeQueryNode): CalledNode[] {
+		const symbol = this.checker.getSymbolAtLocation(node.exprName);
+		if (symbol) {
+			const decls = symbol.getDeclarations() ?? [];
+			return decls.flatMap((d) =>
+				this.collectUnionMemberNodes(d as TS.Node, node)
+			);
+		}
+		return [];
+	}
+
+	// Creates new literal nodes with every possible content
+	private buildTemplateLiteralNode(
+		node: TS.TemplateLiteralTypeNode
+	): CalledNode[] {
+		const results: TS.TypeNode[] = [];
+
+		// Static part (i.e. "[Channel")
+		const headText = node.head.text;
+
+		// Dynamic parts
+		for (const span of node.templateSpans) {
+			const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
+			for (const tn of innerTypeNodes) {
+				if (
+					this.ts.isLiteralTypeNode(tn) &&
+					(this.ts.isStringLiteral(tn.literal) ||
+						this.ts.isNumericLiteral(tn.literal))
+				) {
+					const fullValue = headText + tn.literal.text + span.literal.text;
+					const literalNode = this.ts.factory.createLiteralTypeNode(
+						this.ts.factory.createStringLiteral(fullValue)
+					);
+
+					(literalNode as any).original = tn;
+					(literalNode as CalledNode).callParent = node;
+					results.push(literalNode);
+				} else {
+					results.push(...this.collectUnionMemberNodes(tn, node));
+				}
+			}
+		}
+		return results;
 	}
 
 	private cmp(expr: TS.Expression, node: TS.TypeNode): boolean {
@@ -270,39 +349,5 @@ export class TypeInfoFactory {
 			return true;
 
 		return false;
-	}
-
-	// Creates new literal nodes with every possible content
-	private buildTemplateLiteralNode(
-		node: TS.TemplateLiteralTypeNode
-	): CalledNode[] {
-		const results: TS.TypeNode[] = [];
-
-		// Static part (i.e. "[Channel")
-		const headText = node.head.text;
-
-		// Dynamic parts
-		for (const span of node.templateSpans) {
-			const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
-			for (const tn of innerTypeNodes) {
-				if (
-					this.ts.isLiteralTypeNode(tn) &&
-					(this.ts.isStringLiteral(tn.literal) ||
-						this.ts.isNumericLiteral(tn.literal))
-				) {
-					const fullValue = headText + tn.literal.text + span.literal.text;
-					const literalNode = this.ts.factory.createLiteralTypeNode(
-						this.ts.factory.createStringLiteral(fullValue)
-					);
-
-					(literalNode as any).original = tn;
-					(literalNode as CalledNode).callParent = node;
-					results.push(literalNode);
-				} else {
-					results.push(...this.collectUnionMemberNodes(tn, node));
-				}
-			}
-		}
-		return results;
 	}
 }
