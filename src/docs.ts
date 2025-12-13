@@ -1,19 +1,6 @@
 import type * as TS from 'typescript/lib/tsserverlibrary';
 import { TypeInfo, UnionParameterInfo } from './info';
 
-export function addExtraDocs(
-	ts: typeof TS,
-	quickInfo: TS.QuickInfo,
-	typeInfo: TypeInfo
-) {
-	if (typeInfo.unionParams.length === 0) return;
-	typeInfo.unionParams.forEach((p) => addDocComment(ts, p));
-	quickInfo.documentation = [
-		...(quickInfo.documentation ?? []),
-		createMarkdownDisplayPart(createMarkdown(typeInfo)),
-	];
-}
-
 type TagIdx = {
 	tag: TS.JSDocTagInfo;
 	idx: number;
@@ -130,23 +117,6 @@ function addDocComment(ts: typeof TS, param: UnionParameterInfo) {
 	else param.docComment.push(...lines);
 }
 
-function createMarkdown(typeInfo: TypeInfo) {
-	const paramBlocks = typeInfo.unionParams.map((pi) => paramMarkdown(pi));
-	return `\n
----
-### 🌟 Parameter-Details
-${paramBlocks.join('\n')}
----
-`;
-}
-
-function paramMarkdown(info: UnionParameterInfo): string {
-	const docs = info.docComment?.join('\n') ?? '';
-	return `\n#### ${numberEmoji(info.i + 1)} _${info.name}_ \`${
-		info.value
-	}\`\n${docs}`;
-}
-
 function extractJSDocsFromNode(ts: typeof TS, node: TS.Node): string[] {
 	// If the node was resolved, get the original node
 	node = (node as any).original ?? node;
@@ -201,11 +171,4 @@ function prepareJSDocText(rawComment: string): string[] {
 			// make @tags cursive again
 			.map((line) => line.replace(/@(\w+)/g, (_, tag) => `\n> _@${tag}_`))
 	);
-}
-
-const numEmjs = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
-
-function numberEmoji(num: number) {
-	if (num === 10) return '🔟';
-	return [...String(num)].map((char) => numEmjs[parseInt(char, 10)]);
 }
