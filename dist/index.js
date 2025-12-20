@@ -199,11 +199,10 @@ class TypeInfoFactory {
     if (ts.isTupleTypeNode(node)) return this.collectTupleTypeNode(node);
     if (ts.isTypeQueryNode(node)) return this.collectTypeQueryNode(node);
     if (ts.isTemplateLiteralTypeNode(node))
-      return this.buildTemplateLiteralNode(node);
+      return this.buildTemplateLiteralNode(node, callParent);
     if (ts.isLiteralTypeNode(node) || // e.g. "text", 42, true
     ts.isTypeNode(node)) {
-      node.callParent = callParent;
-      return [node];
+      return [calledNode(node, callParent)];
     }
     console.warn("Unknown node type: ", node);
     return [];
@@ -251,12 +250,10 @@ class TypeInfoFactory {
     const ts = this.ts, checker = this.checker, type = checker.getTypeAtLocation(node.type);
     return type.getProperties().map((p) => {
       const decl = p.getDeclarations()?.[0];
-      const node2 = ts.factory.createLiteralTypeNode(
+      const litNode = ts.factory.createLiteralTypeNode(
         ts.factory.createStringLiteral(p.getName())
       );
-      node2.original = decl;
-      node2.callParent = callParent;
-      return node2;
+      return calledNode(litNode, callParent, decl);
     });
   }
   collectTupleTypeNode(node) {
@@ -272,13 +269,17 @@ class TypeInfoFactory {
     }
     return [];
   }
+  createRegexNode(node, regex, callParent) {
+    const litNode = this.ts.factory.createStringLiteral(regex);
+    return calledNode(litNode, callParent, node, true);
+  }
   // Creates new literal nodes with every possible content
-  buildTemplateLiteralNode(node) {
+  buildTemplateLiteralNode(node, callParent) {
     const headText = escapeRegExp(node.head.text), ts = this.ts;
     let regexPattern = headText;
     for (const span of node.templateSpans) {
-      const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
       const spanPatterns = [];
+      const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
       for (const tn of innerTypeNodes) {
         if (ts.isLiteralTypeNode(tn) && (this.ts.isStringLiteral(tn.literal) || this.ts.isNumericLiteral(tn.literal)))
           spanPatterns.push(escapeRegExp(String(tn.literal.text)));
@@ -293,18 +294,12 @@ class TypeInfoFactory {
       const spanRegex = spanPatterns.length > 1 ? `(${spanPatterns.join("|")})` : spanPatterns[0];
       regexPattern += spanRegex + escapeRegExp(span.literal.text);
     }
-    const finalRegex = `^${regexPattern}$`;
-    const literalNode = ts.factory.createStringLiteral(
-      finalRegex
-    );
-    literalNode.isRegexPattern = true;
-    literalNode.callParent = node;
-    return [node, literalNode];
+    return [node, this.createRegexNode(node, regexPattern, callParent)];
   }
   cmp(expr, node) {
     const ts = this.ts;
     if (isRegexPattern(node) && ts.isStringLiteral(expr)) {
-      const pattern = new RegExp(node.text);
+      const pattern = new RegExp(`^${node.text}$`);
       return pattern.test(expr.text);
     }
     if (!ts.isLiteralTypeNode(node)) return false;
@@ -323,6 +318,13 @@ class TypeInfoFactory {
       return true;
     return false;
   }
+}
+function calledNode(node, callParent, original, isRegexPattern2) {
+  const cNode = node;
+  cNode.callParent = callParent;
+  cNode.original = original;
+  cNode.isRegexPattern = isRegexPattern2;
+  return cNode;
 }
 function isRegexPattern(node) {
   return node.isRegexPattern === true;

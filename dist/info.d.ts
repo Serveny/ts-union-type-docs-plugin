@@ -10,8 +10,10 @@ export declare class UnionInfo {
     docComment?: string[] | undefined;
     constructor(type: SupportedType, name: string, entries: CalledNode[], value?: string | undefined, docComment?: string[] | undefined);
 }
-export interface CalledNode extends TS.TypeNode {
+export interface CalledNode extends TS.Node {
+    id?: string;
     callParent?: CalledNode;
+    original?: TS.Node;
     isRegexPattern?: boolean;
 }
 export declare class TypeInfoFactory {
@@ -34,6 +36,7 @@ export declare class TypeInfoFactory {
     private collectKeyOfKeywordTypeOperatorNode;
     private collectTupleTypeNode;
     private collectTypeQueryNode;
+    private createRegexNode;
     private buildTemplateLiteralNode;
     private cmp;
 }

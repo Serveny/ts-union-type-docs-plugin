@@ -1,5 +1,5 @@
 import type * as TS from 'typescript/lib/tsserverlibrary';
-import { UnionInfo } from './info';
+import { CalledNode, UnionInfo } from './info';
 
 type TagIdx = {
 	tag: TS.JSDocTagInfo;
@@ -104,15 +104,15 @@ function addDocComment(ts: typeof TS, param: UnionInfo) {
 
 	// Read out all comments
 	for (const entryNode of param.entries) {
-		if (visited.has((entryNode as any).id)) continue;
-		visited.add((entryNode as any).id);
+		if (visited.has(entryNode.id)) continue;
+		visited.add(entryNode.id);
 		comments.push(extractJSDocsFromNode(ts, entryNode));
 
 		let parent = entryNode.callParent;
 		while (parent != null) {
-			if (!visited.has((parent as any).id)) {
+			if (!visited.has(parent.id)) {
 				comments.push(extractJSDocsFromNode(ts, parent));
-				visited.add((parent as any).id);
+				visited.add(parent.id);
 			}
 			parent = parent.callParent;
 		}
@@ -124,9 +124,9 @@ function addDocComment(ts: typeof TS, param: UnionInfo) {
 	else param.docComment.push(...lines);
 }
 
-function extractJSDocsFromNode(ts: typeof TS, node: TS.Node): string[] {
+function extractJSDocsFromNode(ts: typeof TS, node: CalledNode): string[] {
 	// If the node was resolved, get the original node
-	node = (node as any).original ?? node;
+	node = node.original ?? node;
 	const sourceFile = node.getSourceFile();
 	if (!sourceFile) return [];
 	const sourceText = sourceFile.getFullText();

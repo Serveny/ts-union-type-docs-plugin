@@ -16,9 +16,11 @@ export class UnionInfo {
 	) {}
 }
 
-export interface CalledNode extends TS.TypeNode {
-	callParent?: CalledNode;
-	isRegexPattern?: boolean;
+export interface CalledNode extends TS.Node {
+	id?: string;
+	callParent?: CalledNode; // The node that references to it
+	original?: TS.Node; // For resolved nodes
+	isRegexPattern?: boolean; // For template syntax like ${number}
 }
 
 export class TypeInfoFactory {
@@ -161,15 +163,14 @@ export class TypeInfoFactory {
 
 		// e.g. `text-${number}`
 		if (ts.isTemplateLiteralTypeNode(node))
-			return this.buildTemplateLiteralNode(node);
+			return this.buildTemplateLiteralNode(node, callParent);
 
 		// This is the end of the journey
 		if (
 			ts.isLiteralTypeNode(node) || // e.g. "text", 42, true
 			ts.isTypeNode(node) // e.g. string, number, boolean
 		) {
-			(node as any).callParent = callParent;
-			return [node];
+			return [calledNode(node, callParent)];
 		}
 
 		console.warn('Unknown node type: ', node);
@@ -207,7 +208,7 @@ export class TypeInfoFactory {
 	}
 
 	private collectMappedTypeNode(node: TS.MappedTypeNode): CalledNode[] {
-		const results: TS.TypeNode[] = [];
+		const results: TS.Node[] = [];
 		if (node.typeParameter.constraint)
 			results.push(
 				...this.collectUnionMemberNodes(node.typeParameter.constraint, node)
@@ -248,14 +249,10 @@ export class TypeInfoFactory {
 			type = checker.getTypeAtLocation(node.type);
 		return type.getProperties().map((p) => {
 			const decl = p.getDeclarations()?.[0];
-			const node = ts.factory.createLiteralTypeNode(
+			const litNode = ts.factory.createLiteralTypeNode(
 				ts.factory.createStringLiteral(p.getName())
 			);
-			// little hack to get the original declaration of the keyof property
-			// to be able to access the jsdoc of it
-			(node as any).original = decl;
-			(node as any).callParent = callParent;
-			return node;
+			return calledNode(litNode, callParent, decl);
 		});
 	}
 
@@ -276,18 +273,27 @@ export class TypeInfoFactory {
 		return [];
 	}
 
+	private createRegexNode(
+		node: TS.Node,
+		regex: string,
+		callParent?: TS.Node
+	): CalledNode {
+		const litNode = this.ts.factory.createStringLiteral(regex);
+		return calledNode(litNode, callParent, node, true);
+	}
+
 	// Creates new literal nodes with every possible content
 	private buildTemplateLiteralNode(
-		node: TS.TemplateLiteralTypeNode
+		node: TS.TemplateLiteralTypeNode,
+		callParent?: TS.Node
 	): CalledNode[] {
 		const headText = escapeRegExp(node.head.text),
 			ts = this.ts;
 		let regexPattern = headText;
 
 		for (const span of node.templateSpans) {
-			const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
-
 			const spanPatterns: string[] = [];
+			const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
 
 			for (const tn of innerTypeNodes) {
 				// Literal: "foo" -> "foo"
@@ -319,16 +325,7 @@ export class TypeInfoFactory {
 			regexPattern += spanRegex + escapeRegExp(span.literal.text);
 		}
 
-		// Surround with ^...$, so the whole string must match
-		const finalRegex = `^${regexPattern}$`;
-
-		const literalNode = ts.factory.createStringLiteral(
-			finalRegex
-		) as unknown as CalledNode;
-		literalNode.isRegexPattern = true;
-		literalNode.callParent = node;
-
-		return [node, literalNode];
+		return [node, this.createRegexNode(node, regexPattern, callParent)];
 	}
 
 	private cmp(expr: TS.Expression, node: CalledNode): boolean {
@@ -336,7 +333,8 @@ export class TypeInfoFactory {
 
 		// check for generated regex pattern
 		if (isRegexPattern(node) && ts.isStringLiteral(expr)) {
-			const pattern = new RegExp(node.text);
+			// Surround with ^...$, so the whole string must match
+			const pattern = new RegExp(`^${node.text}$`);
 			return pattern.test(expr.text);
 		}
 
@@ -385,7 +383,22 @@ export class TypeInfoFactory {
 	}
 }
 
-function isRegexPattern(node: any): node is TS.StringLiteral {
+function calledNode(
+	node: TS.Node,
+	callParent?: TS.Node,
+	original?: TS.Node,
+	isRegexPattern?: boolean
+): CalledNode {
+	const cNode = node as CalledNode;
+	cNode.callParent = callParent as any;
+	cNode.original = original;
+	cNode.isRegexPattern = isRegexPattern;
+	return cNode;
+}
+
+function isRegexPattern(
+	node: CalledNode
+): node is TS.StringLiteral & CalledNode {
 	return node.isRegexPattern === true;
 }
 
