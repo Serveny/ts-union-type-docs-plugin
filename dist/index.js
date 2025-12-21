@@ -330,7 +330,7 @@ class TypeInfoFactory {
     }
     const catProd = cartesianProduct(nodes).map((compNodes) => {
       const isRegex = compNodes.some((n) => n.isRegexPattern === true);
-      const fullText = headText + compNodes.map((n) => n.text).join();
+      const fullText = headText + compNodes.map((n) => n.text).join("");
       return this.createLiteralNode(
         compNodes[0],
         fullText,

@@ -90,7 +90,7 @@ describe('Nested Union Type Param Docs Tests', () => {
 	const filePath = 'tests/cases/union-type-param.ts';
 	const { proxy, absolutePath, code } = createProxyFromCase(filePath);
 
-	it('should find nothing', () => {
+	it('should find nothing of union type', () => {
 		const cursorPos = code.indexOf(`logClassColor('')`);
 		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
 		expect(result).toBeDefined();
@@ -113,7 +113,7 @@ describe('Nested Union Type Param Docs Tests', () => {
 		);
 	});
 
-	it('should find nothing', () => {
+	it('should find nothing of union type', () => {
 		const cursorPos = code.indexOf(`logClassColor('Color-blue')`);
 		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
 
@@ -123,6 +123,30 @@ describe('Nested Union Type Param Docs Tests', () => {
 
 	it('should find fourth js doc comment of union type', () => {
 		const cursorPos = code.indexOf(`logClassColor('Color-A100')`);
+		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
+		expect(result).toBeDefined();
+		expect(tagsToText(result!)).toContain(
+			'color\n> A number\n> \n> \n> _@range_ 1-4'
+		);
+	});
+
+	it('should find nothing of double nested template', () => {
+		const cursorPos = code.indexOf(`logNColor('')`);
+		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
+
+		expect(result).toBeDefined();
+		expect(tagsToText(result!)).toBe('');
+	});
+
+	it('should find first js doc comment of double nested template', () => {
+		const cursorPos = code.indexOf(`logNColor('Color-1-red')`);
+		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
+		expect(result).toBeDefined();
+		expect(tagsToText(result!)).toContain('color\n> Primary color\n');
+	});
+
+	it('should find fourth js doc comment of double nested template', () => {
+		const cursorPos = code.indexOf(`logClassColor('Color-1-A1')`);
 		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
 		expect(result).toBeDefined();
 		expect(tagsToText(result!)).toContain(
@@ -230,20 +254,17 @@ https://manual.mixxx.org/latest/chapters/appendix/mixxx_controls.html)`);
 		expect(result).toBeDefined();
 		expect(tagsToText(result!))
 			.toContain(`Name of the control e.g. "play_indicator"
-> Adjusts the gain of the input
+> Indicates when the signal is clipping (too loud for the hardware and is being distorted) for the left channel.
 > This is a ControlPotMeter control.
 > 
 > 
-> _@groups_ [AuxiliaryN], [MicrophoneN]
+> _@groups_ [Master]
 > 
-> _@range_ 0.0..1.0..4.0
+> _@range_ binary
 > 
-> _@feedback_ Microphone gain knob
+> _@feedback_ Clip light (left)
 > 
 > _@kind_ pot meter control
-> 
-> 
-> Increases the value by smaller step, sets the speed one small step higher (1 % default)
 > Value of the control (within it's range according Mixxx Controls manual page:
 https://manual.mixxx.org/latest/chapters/appendix/mixxx_controls.html)`);
 	});
