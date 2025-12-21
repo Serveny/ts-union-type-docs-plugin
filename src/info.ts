@@ -119,9 +119,9 @@ export class TypeInfoFactory {
 			ts.isIntersectionTypeNode(node) || // e.g. Class1 & Class2
 			ts.isHeritageClause(node) // e.g. Class1 extends BaseClass implements Interface1
 		) {
-			return node.types
-				.map((tn) => this.collectUnionMemberNodes(tn, callParent))
-				.flat();
+			return node.types.flatMap((tn) =>
+				this.collectUnionMemberNodes(tn, callParent)
+			);
 		}
 
 		// e.g. T extends U ? string : number
@@ -200,13 +200,9 @@ export class TypeInfoFactory {
 	}
 
 	private collectTypeLiteralNode(node: TS.TypeLiteralNode): CalledNode[] {
-		return node.members
-			.map((m) =>
-				(m as any).type
-					? this.collectUnionMemberNodes((m as any).type, node)
-					: []
-			)
-			.flat();
+		return node.members.flatMap((m) =>
+			(m as any).type ? this.collectUnionMemberNodes((m as any).type, node) : []
+		);
 	}
 
 	private collectMappedTypeNode(node: TS.MappedTypeNode): CalledNode[] {
@@ -259,9 +255,9 @@ export class TypeInfoFactory {
 	}
 
 	private collectTupleTypeNode(node: TS.TupleTypeNode): CalledNode[] {
-		return node.elements
-			.map((el) => this.collectUnionMemberNodes(el, node))
-			.flat();
+		return node.elements.flatMap((el) =>
+			this.collectUnionMemberNodes(el, node)
+		);
 	}
 
 	private collectTypeQueryNode(node: TS.TypeQueryNode): CalledNode[] {
@@ -303,8 +299,10 @@ export class TypeInfoFactory {
 			const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
 
 			for (const tn of innerTypeNodes) {
+				if (tn.isRegexPattern != null)
+					spanNodes.push(tn as CalledNode & TS.LiteralLikeNode);
 				// Literal: "foo" -> "foo"
-				if (
+				else if (
 					ts.isLiteralTypeNode(tn) &&
 					(this.ts.isStringLiteral(tn.literal) ||
 						this.ts.isNumericLiteral(tn.literal))

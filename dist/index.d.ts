@@ -1,6 +1,6 @@
 import { UnionTypeDocsPlugin } from './plugin';
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type * as TS from 'typescript/lib/tsserverlibrary';
 declare const _default: (mod: {
-    typescript: typeof ts;
+    typescript: typeof TS;
 }) => UnionTypeDocsPlugin;
 export = _default;

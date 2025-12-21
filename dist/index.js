@@ -181,7 +181,9 @@ class TypeInfoFactory {
     if (ts.isUnionTypeNode(node) || // e.g. string | number
     ts.isIntersectionTypeNode(node) || // e.g. Class1 & Class2
     ts.isHeritageClause(node)) {
-      return node.types.map((tn) => this.collectUnionMemberNodes(tn, callParent)).flat();
+      return node.types.flatMap(
+        (tn) => this.collectUnionMemberNodes(tn, callParent)
+      );
     }
     if (ts.isConditionalTypeNode(node))
       return this.collectConditionalTypeNode(node);
@@ -223,9 +225,9 @@ class TypeInfoFactory {
     ];
   }
   collectTypeLiteralNode(node) {
-    return node.members.map(
+    return node.members.flatMap(
       (m) => m.type ? this.collectUnionMemberNodes(m.type, node) : []
-    ).flat();
+    );
   }
   collectMappedTypeNode(node) {
     const results = [];
@@ -258,7 +260,9 @@ class TypeInfoFactory {
     });
   }
   collectTupleTypeNode(node) {
-    return node.elements.map((el) => this.collectUnionMemberNodes(el, node)).flat();
+    return node.elements.flatMap(
+      (el) => this.collectUnionMemberNodes(el, node)
+    );
   }
   collectTypeQueryNode(node) {
     const symbol = this.checker.getSymbolAtLocation(node.exprName);
@@ -287,7 +291,9 @@ class TypeInfoFactory {
       const spanNodes = [];
       const innerTypeNodes = this.collectUnionMemberNodes(span.type, node);
       for (const tn of innerTypeNodes) {
-        if (ts.isLiteralTypeNode(tn) && (this.ts.isStringLiteral(tn.literal) || this.ts.isNumericLiteral(tn.literal)))
+        if (tn.isRegexPattern != null)
+          spanNodes.push(tn);
+        else if (ts.isLiteralTypeNode(tn) && (this.ts.isStringLiteral(tn.literal) || this.ts.isNumericLiteral(tn.literal)))
           spanNodes.push(
             this.createLiteralNode(
               tn,
