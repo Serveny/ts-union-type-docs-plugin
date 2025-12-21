@@ -1,5 +1,5 @@
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type * as TS from 'typescript/lib/tsserverlibrary';
 import { UnionTypeDocsPlugin } from './plugin';
 
-export = (mod: { typescript: typeof ts }) =>
-  new UnionTypeDocsPlugin(mod.typescript);
+export = (mod: { typescript: typeof TS }) =>
+	new UnionTypeDocsPlugin(mod.typescript);
