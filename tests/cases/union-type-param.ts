@@ -53,3 +53,14 @@ logClassColor('Color-blue');
 logClassColor('Color-A100');
 // @ts-ignore
 logClassColor('');
+
+type ClassNColor = `Color-${number}-${Color}`;
+
+function logNColor(color2: ClassNColor): void {
+	console.log(color2);
+}
+
+logNColor('Color-1-red');
+logNColor('Color-1-A1');
+// @ts-ignore
+logNColor('');
