@@ -8,11 +8,11 @@ type Color =
 	| 'red'
 
 	/**
-	 * Secondary color
+	 * Secondary color with some regex symbols
 	 *
 	 * @color green
 	 */
-	| 'green'
+	| 'green/[.*+?^${}()|[]-]/g'
 
 	// This has no JS doc comment
 	| 'blue'
@@ -32,7 +32,7 @@ function logColor(color: Color): void {
 }
 
 logColor('red');
-logColor('green');
+logColor('green/[.*+?^${}()|[]-]/g');
 logColor('blue');
 logColor('A100');
 // @ts-ignore
@@ -48,7 +48,7 @@ function logClassColor(color: ClassColor): void {
 }
 
 logClassColor('Color-red');
-logClassColor('Color-green');
+logClassColor('Color-green/[.*+?^${}()|[]-]/g');
 logClassColor('Color-blue');
 logClassColor('Color-A100');
 // @ts-ignore

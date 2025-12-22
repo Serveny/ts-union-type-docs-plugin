@@ -59,12 +59,12 @@ describe('Union Type Param Docs Tests', () => {
 		expect(tagsToText(result!)).toContain('color\n> Primary color\n');
 	});
 
-	it('should find second js doc comment of union type', () => {
-		const cursorPos = code.indexOf(`logColor('green')`);
+	it('should find second js doc comment of union type with regex symbols inside string', () => {
+		const cursorPos = code.indexOf(`logColor('green/[.*+?^\${}()|[]-]/g');`);
 		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
 		expect(result).toBeDefined();
 		expect(tagsToText(result!)).toContain(
-			'color\n> Secondary color\n> \n> \n> _@color_ green'
+			'color\n> Secondary color with some regex symbols\n> \n> \n> _@color_ green'
 		);
 	});
 
@@ -104,12 +104,15 @@ describe('Nested Union Type Param Docs Tests', () => {
 		expect(tagsToText(result!)).toContain('color\n> Primary color\n');
 	});
 
-	it('should find second js doc comment of union type', () => {
-		const cursorPos = code.indexOf(`logClassColor('Color-green')`);
+	it('should find second js doc comment of union type with regex symbols inside string', () => {
+		const cursorPos = code.indexOf(
+			`logClassColor('Color-green/[.*+?^\${}()|[]-]/g')`
+		);
 		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
 		expect(result).toBeDefined();
+		console.log('RESULT', tagsToText(result!));
 		expect(tagsToText(result!)).toContain(
-			'color\n> Secondary color\n> \n> \n> _@color_ green'
+			'color\n> Secondary color with some regex symbols\n> \n> \n> _@color_ green'
 		);
 	});
 
