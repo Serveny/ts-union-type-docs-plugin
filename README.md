@@ -3,7 +3,7 @@
 A TypeScript Language Service plugin that displays JSDoc comments from union type members directly in your editor's quick info (hover) tooltips.
 
 <p align="center">
-	<img width="700" height="393" alt="image" src="https://github.com/user-attachments/assets/e79d79e7-173a-4399-aad5-99ebc1ec2c27" />
+	<img width="600"  alt="image" src="example/demo.png" />
 </p>
 
 ### 💡 The Problem
@@ -72,9 +72,18 @@ After updating your `tsconfig.json`, you **must restart your TS Server**.
 
 Interested in helping build this plugin? We'd love to have you\!
 
-### How to Debug
+### 🤖 Automatic Testing
 
-The easiest way to test your changes is to run a debug instance of VS Code that loads your local plugin code. The commands search the example project under `../example` (outside of plugin project folder)
+- **Run Tests:** Execute this command to verify plugin functionality:
+  ```bash
+  npm run test
+  ```
+- **File Structure:** All test logic is located in the `tests` directory, while the source code being tested resides in `tests/cases`.
+- **Adding Tests:** To create a new test, add a `your-test.test.ts` file to the tests folder. Then, either create a corresponding file in `tests/cases` or extend an existing case if it covers the same functional area.
+
+### 🥵 How to Debug
+
+Run a debug instance of VS Code that loads your local plugin code. The commands search the example project under `../example` (outside of plugin project folder)
 
 > [!IMPORTANT]  
 > The project to be debugged must be located outside the ts-union-docs-plugin folder. It wont work otherwise. If you want to use the example project, you must copy or move it out of the folder.
