@@ -62,8 +62,9 @@ function addDocComment(ts, param) {
   const visited = /* @__PURE__ */ new Set();
   const comments = [];
   for (const entryNode of param.entries) {
-    if (visited.has(entryNode.id)) continue;
-    visited.add(entryNode.id);
+    const id = entryNode.id;
+    if (visited.has(id)) continue;
+    visited.add(id);
     comments.push(extractJSDocsFromNode(ts, entryNode));
     let parent = entryNode.callParent;
     while (parent != null) {
@@ -118,9 +119,11 @@ class UnionInfo {
   }
 }
 class TypeInfoFactory {
+  // ID counter for generating synthetic nodes
   constructor(ts, ls) {
     this.ts = ts;
     this.ls = ls;
+    this.id = -1;
   }
   create(fileName, position) {
     const program = this.ls.getProgram();
@@ -276,6 +279,7 @@ class TypeInfoFactory {
   }
   createLiteralNode(node, text, callParent, isRegexPattern2) {
     const litNode = this.ts.factory.createStringLiteral(text);
+    litNode.id = this.id--;
     return calledNode(
       litNode,
       callParent,
@@ -328,14 +332,11 @@ class TypeInfoFactory {
       }
       nodes.push(spanNodes);
     }
-    const catProd = cartesianProduct(nodes).map((compNodes) => {
+    const catProd = cartesianProduct(nodes).flatMap((compNodes) => {
       const isRegex = compNodes.some((n) => n.isRegexPattern === true);
       const fullText = headText + compNodes.map((n) => n.text).join("");
-      return this.createLiteralNode(
-        compNodes[0],
-        fullText,
-        compNodes[0].callParent,
-        isRegex
+      return compNodes.map(
+        (cn) => this.createLiteralNode(cn, fullText, cn.callParent, isRegex)
       );
     });
     return catProd;

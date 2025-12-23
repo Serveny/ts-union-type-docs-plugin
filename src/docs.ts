@@ -104,8 +104,9 @@ function addDocComment(ts: typeof TS, param: UnionInfo) {
 
 	// Read out all comments
 	for (const entryNode of param.entries) {
-		if (visited.has(entryNode.id)) continue;
-		visited.add(entryNode.id);
+		const id = entryNode.id;
+		if (visited.has(id)) continue;
+		visited.add(id);
 		comments.push(extractJSDocsFromNode(ts, entryNode));
 
 		let parent = entryNode.callParent;

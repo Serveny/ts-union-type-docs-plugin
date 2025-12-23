@@ -11,7 +11,7 @@ export declare class UnionInfo {
     constructor(type: SupportedType, name: string, entries: CalledNode[], value?: string | undefined, docComment?: string[] | undefined);
 }
 export interface CalledNode extends TS.Node {
-    id?: string;
+    id?: number;
     callParent?: CalledNode;
     original?: TS.Node;
     isRegexPattern?: boolean;
@@ -21,6 +21,7 @@ export declare class TypeInfoFactory {
     private ts;
     private ls;
     private checker;
+    private id;
     constructor(ts: typeof TS, ls: TS.LanguageService);
     create(fileName: string, position: number): UnionInfo[] | null;
     private findNodeAtPos;

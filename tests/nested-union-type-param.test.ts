@@ -71,4 +71,15 @@ describe('Nested Union Type Param Docs Tests', () => {
 			'color\n> A number\n> \n> \n> _@range_ 1-4'
 		);
 	});
+
+	it('should find second js doc comment of double nested union type with regex symbols inside string', () => {
+		const cursorPos = code.indexOf(
+			`logNColor('Color-1-green/[.*+?^\${}()|[]-]/g')`
+		);
+		const result = proxy.getQuickInfoAtPosition(absolutePath, cursorPos);
+		expect(result).toBeDefined();
+		expect(tagsToText(result!)).toContain(
+			'color\n> Secondary color with some regex symbols\n> \n> \n> _@color_ green'
+		);
+	});
 });

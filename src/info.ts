@@ -17,7 +17,7 @@ export class UnionInfo {
 }
 
 export interface CalledNode extends TS.Node {
-	id?: string;
+	id?: number;
 	callParent?: CalledNode; // The node that references to it
 	original?: TS.Node; // For resolved nodes
 	isRegexPattern?: boolean; // For template syntax like ${number}
@@ -26,6 +26,7 @@ export interface CalledNode extends TS.Node {
 
 export class TypeInfoFactory {
 	private checker!: TS.TypeChecker;
+	private id = -1; // ID counter for generating synthetic nodes
 
 	constructor(private ts: typeof TS, private ls: TS.LanguageService) {}
 
@@ -278,6 +279,7 @@ export class TypeInfoFactory {
 		isRegexPattern?: boolean
 	): CalledNode & TS.LiteralLikeNode {
 		const litNode = this.ts.factory.createStringLiteral(text);
+		(litNode as any).id = this.id--;
 		return calledNode(
 			litNode,
 			callParent,
@@ -347,14 +349,11 @@ export class TypeInfoFactory {
 			nodes.push(spanNodes);
 		}
 
-		const catProd = cartesianProduct(nodes).map((compNodes) => {
+		const catProd = cartesianProduct(nodes).flatMap((compNodes) => {
 			const isRegex = compNodes.some((n) => n.isRegexPattern === true);
 			const fullText = headText + compNodes.map((n) => n.text).join('');
-			return this.createLiteralNode(
-				compNodes[0],
-				fullText,
-				compNodes[0].callParent,
-				isRegex
+			return compNodes.map((cn) =>
+				this.createLiteralNode(cn, fullText, cn.callParent, isRegex)
 			);
 		});
 
