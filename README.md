@@ -61,12 +61,12 @@ After updating your `tsconfig.json`, you **must restart your TS Server**.
 ## 📋 Features
 
 - **Function Union Parameters Documentation:** When hovering over a a function.
+- **Documentation for Variables with Union Type:** When hovering over a `const`, `let` or `var` that is assigned a union member.
 
 ## 🗺️ Roadmap
 
-- **Deprecation warnings** for union type entries
-- **Variable Declarations:** When hovering over a `const` or `let` that is assigned a union member.
 - **Dynamic Type Suggestions:** Provide intelligent suggestions for template literal types (e.g., typing `group${number}` would suggest `group0`, `group1`, etc.).
+- **Deprecation warnings** for union type entries
 
 ## 🛠️ Contributing & Development
 
@@ -88,18 +88,18 @@ Run a debug instance of VS Code that loads your local plugin code. The commands 
 > [!IMPORTANT]  
 > The project to be debugged must be located outside the ts-union-docs-plugin folder. It wont work otherwise. If you want to use the example project, you must copy or move it out of the folder.
 
-1. **Start watcher in plugin project folder:**
+> [!IMPORTANT]  
+> [TS Union Docs VSCode extension](https://github.com/Serveny/ts-union-docs-vscode-extension) should not be installed in the debug instance, because then debugging will not work (It can't find the breakpoints)
 
+1. **Start watcher in plugin project folder:**  
    This command builds the plugin and installs it in example project every time a file inside the plugin project was changed.
 
    ```bash
    npm run watch-and-refresh
    ```
 
-2. **Start the example project with debugging enabled:**
-
+2. **Start the example project with debugging enabled:**  
    This command launches VS Code (`code`) using a special `TSS_DEBUG` port and a separate user data directory to avoid conflicts.
-
    ```bash
    npm run debug
    ```
